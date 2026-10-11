@@ -11,3 +11,13 @@ verify_jwt = false
 verify_jwt = false
 [functions.cl-ai]
 verify_jwt = false
+
+[auth]
+enabled = true
+site_url = "https://hoangfairplaysports-web.github.io/mummii-checklist/"
+additional_redirect_urls = ["https://hoangfairplaysports-web.github.io/mummii-checklist/**"]
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false

@@ -1,0 +1,10 @@
+{
+  "name": "Mummii Checklist",
+  "short_name": "Mummii",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#3767b3",
+  "lang": "vi",
+  "icons": [{ "src": "assets/logo-mark.png", "sizes": "256x256", "type": "image/png", "purpose": "any" }]
+}

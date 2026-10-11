@@ -1,0 +1,13 @@
+project_id = "mummii-checklist"
+
+# Cấu hình khi deploy bằng Supabase CLI.
+# Các function tự kiểm tra đăng nhập/khoá bí mật bên trong, nên tắt kiểm tra JWT mặc định
+# (bắt buộc cho webhook Telegram và cron).
+[functions.cl-admin-users]
+verify_jwt = false
+[functions.cl-notify]
+verify_jwt = false
+[functions.cl-telegram]
+verify_jwt = false
+[functions.cl-ai]
+verify_jwt = false

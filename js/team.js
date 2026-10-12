@@ -71,6 +71,7 @@ export function dayRow(state, p, date) {
   return {
     p, tasks, total: tasks.length, done, start,
     ss: start && U.startStatus(start.started_at, state.settings, p),
+    loc: U.locInfo(start),
     workday: U.isWorkday(state, p.id, date),
     leave: U.leaveOn(state, p.id, date),
     overdue: tasks.filter((t) => U.taskFlags(t, date).overdue).length,
@@ -89,7 +90,7 @@ function PersonCard({ r, ctx, date, onOpen }) {
       <${Avatar} p=${p} size=${38} />
       <div class="grow"><b>${p.full_name}</b><div class="muted small">${p.title || U.ROLES[p.role]}</div></div>
       ${!r.workday ? html`<${Badge} cls="info">🌴 ${r.leave ? U.LEAVE_TYPES[r.leave.type] : 'Nghỉ'}</${Badge}>`
-        : r.start ? html`<${Badge} cls=${r.ss.cls} title="Giờ bấm Bắt đầu">${U.fmtTime(r.start.started_at)} · ${r.ss.label}</${Badge}>`
+        : r.start ? html`<span style="display:inline-flex;gap:4px"><${Badge} cls=${r.ss.cls} title="Giờ bấm Bắt đầu">${U.fmtTime(r.start.started_at)} · ${r.ss.label}</${Badge}>${r.loc && html`<${Badge} cls=${r.loc.cls} title=${r.loc.label + ' · ' + r.loc.title}>${r.loc.icon}${r.loc.cls === 'bad' || r.loc.cls === 'warn' ? ' ' + r.loc.label : ''}</${Badge}>`}</span>`
         : html`<${Badge} cls=${notStartedLate ? 'bad' : ''}>Chưa bắt đầu</${Badge}>`}
     </div>
     ${r.workday && html`<div>

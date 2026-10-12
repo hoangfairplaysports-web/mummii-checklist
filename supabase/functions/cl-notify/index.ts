@@ -63,7 +63,7 @@ async function runReminders(sent: string[]) {
   }
 
   if (!sunday) {
-    const { data: starts } = await admin.from('cl_daystarts').select('person_id, started_at').eq('date', today);
+    const { data: starts } = await admin.from('cl_daystarts').select('person_id, started_at, loc').eq('date', today);
     const started = new Set((starts ?? []).map((x) => x.person_id));
 
     // 2) 8:50 — nhắc nhân viên bấm "Bắt đầu ngày làm việc"
@@ -75,9 +75,11 @@ async function runReminders(sent: string[]) {
     if (inWindow('08:45', '09:30')) {
       const missing = staff.filter((m) => working(m) && !started.has(m.id));
       const late = (starts ?? []).filter((x) => staff.some((m) => m.id === x.person_id) && toMin(fmtTime(x.started_at)) > toMin(s.late_after));
+      const away = (starts ?? []).filter((x) => staff.some((m) => m.id === x.person_id) && (x.loc === 'outside' || x.loc === 'unknown'));
       const lines = [
         missing.length ? `Chưa bắt đầu: ${missing.map((m) => m.full_name).join(', ')}` : 'Cả team đã bắt đầu ngày làm việc ✅',
         ...(late.length ? [`Bắt đầu trễ: ${late.map((x) => `${members.find((m) => m.id === x.person_id)?.full_name} (${fmtTime(x.started_at)})`).join(', ')}`] : []),
+        ...(away.length ? [`Ngoài văn phòng / chưa rõ vị trí: ${away.map((x) => `${members.find((m) => m.id === x.person_id)?.full_name} (${x.loc === 'outside' ? 'ngoài VP' : 'chưa rõ'})`).join(', ')}`] : []),
       ];
       for (const a of admins) await send(`sum915:${a.id}:${today}`, a, '👥 Team sáng nay', lines.join('\n'), 'sum915');
     }

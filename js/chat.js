@@ -111,6 +111,8 @@ function answer(q, me) {
     const lines = [`👥 Team hôm nay (${rows.length} người làm việc):`];
     lines.push(`• Đã bắt đầu: ${rows.length - notStarted.length}/${rows.length}${notStarted.length ? ' — chưa: ' + notStarted.map((r) => short(r.p.full_name)).join(', ') : ''}`);
     if (late.length) lines.push(`• Bắt đầu trễ: ${late.map((r) => `${short(r.p.full_name)} (${U.fmtTime(r.start.started_at)})`).join(', ')}`);
+    const away = rows.filter((r) => r.start && (r.start.loc === 'outside' || r.start.loc === 'unknown'));
+    if (away.length) lines.push(`• Bắt đầu ngoài văn phòng / chưa rõ vị trí: ${away.map((r) => `${short(r.p.full_name)} (${r.loc.label})`).join(', ')}`);
     for (const r of rows) lines.push(`• ${short(r.p.full_name)}: ${r.done}/${r.total} việc xong${r.overdue ? `, ${r.overdue} quá hạn` : ''}`);
     if (blocked.length) lines.push(`🚧 Đang vướng: ${blocked.map(({ t, p }) => `${short(p.full_name)} — "${t.title}"${t.need_help ? ` (cần: ${t.need_help})` : ''}`).join('; ')}`);
     if (pend) lines.push(`📨 ${pend} báo cáo đang chờ bạn duyệt.`);

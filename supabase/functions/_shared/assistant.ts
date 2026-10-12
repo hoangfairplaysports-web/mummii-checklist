@@ -78,7 +78,7 @@ const TOOLS = [
   },
   {
     name: 'team_overview',
-    description: 'Tình hình team trong 1 ngày: ai đã bắt đầu làm việc lúc mấy giờ, % việc xong, việc vướng, quá hạn, báo cáo đã nộp.',
+    description: 'Tình hình team trong 1 ngày: ai đã bắt đầu làm việc lúc mấy giờ, ở đâu (location: office_wifi/office_gps = tại văn phòng, outside = ngoài văn phòng, unknown = chưa rõ, wfh = nhân sự remote/cộng tác viên, null = chưa bật kiểm tra), % việc xong, việc vướng, quá hạn, báo cáo đã nộp.',
     parameters: { type: 'object', properties: { date: { type: 'string' } } },
   },
   {
@@ -168,7 +168,7 @@ async function exec(me: Member, name: string, a: Args) {
   if (name === 'team_overview') {
     const staff = people.filter((m) => m.role === 'staff' || m.role === 'manager');
     const [{ data: starts }, { data: tasks }, { data: reps }, { data: settings }] = await Promise.all([
-      admin.from('cl_daystarts').select('person_id, started_at').eq('date', date),
+      admin.from('cl_daystarts').select('person_id, started_at, loc').eq('date', date),
       admin.from('cl_tasks').select('owner_id, title, status, due_date, block_reason, need_help, source, date').eq('scope', 'work').eq('hidden', false).lte('date', date).or(`status.neq.done,date.eq.${date}`),
       admin.from('cl_reports').select('person_id, status, submitted_at').eq('date', date),
       admin.from('cl_settings').select('data').eq('id', 1).maybeSingle(),
@@ -180,6 +180,7 @@ async function exec(me: Member, name: string, a: Args) {
       return {
         name: m.full_name, dept: m.dept,
         started_at: st ? fmtTime(st.started_at) : null, late: st ? toMin(fmtTime(st.started_at)) > toMin(late) : null,
+        location: st?.loc ?? null,
         done: mine.filter((t) => t.status === 'done').length, total: mine.length,
         blocked: mine.filter((t) => t.status === 'blocked').map((t) => ({ title: t.title, reason: t.block_reason, need: t.need_help })),
         overdue: mine.filter((t) => t.status !== 'done' && t.due_date && t.due_date < date).map((t) => t.title),

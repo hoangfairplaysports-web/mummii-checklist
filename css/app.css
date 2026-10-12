@@ -425,6 +425,13 @@ code { background: #eef3f8; padding: 1px 6px; border-radius: 4px; font-size: 12.
 .evledger .lg-div { display: flex; }
 .table.compact td, .table.compact th { padding: 5px 8px; font-size: 12.5px; }
 
+/* Kiểm tra vị trí khi bắt đầu ngày */
+.checkin-rules { display: grid; gap: 10px; margin: 6px 0 4px; }
+.checkin-rules .sub { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.checkin-rules .chip { cursor: default; display: inline-flex; align-items: center; gap: 4px; font-family: ui-monospace, monospace; }
+.checkin-rules .chip .x { border: 0; background: none; cursor: pointer; font-size: 15px; line-height: 1; padding: 0 2px; color: var(--muted, #888); }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--brand); cursor: pointer; font: inherit; text-decoration: underline; }
+
 /* Dự án (mượn từ CRM) */
 .card-sec { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; }
 .card-sec.late, .card.late { border-color: var(--bad); }

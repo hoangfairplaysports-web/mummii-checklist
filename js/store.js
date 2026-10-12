@@ -4,7 +4,7 @@
 //   rồi ghi lên máy chủ; nếu máy chủ từ chối thì báo lỗi và tải lại dữ liệu thật.
 import { makeSeed, instantiateRoutines, demoEvents } from './seed.js';
 import { CONFIG } from './config.js';
-import { uid, todayStr, addDays, yearStart, setDepts } from './util.js';
+import { uid, todayStr, addDays, yearStart, setDepts, getPosition, isRemote } from './util.js';
 
 export const LIVE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 const KEY = 'fp-checklist-demo-v1';
@@ -233,20 +233,41 @@ export async function rpc(name, args) {
 // Hành động (dùng chung cho cả 2 chế độ)
 // ---------------------------------------------------------------------------
 const nowIso = () => new Date().toISOString();
+// Bản demo: tính nhãn GPS ngay trên trình duyệt (bản thật do máy chủ tính)
+function demoLoc(pos, s, row) {
+  const R = 6371000, rad = (d) => (d * Math.PI) / 180;
+  const a = Math.sin(rad(s.office_lat - pos.lat) / 2) ** 2 + Math.cos(rad(pos.lat)) * Math.cos(rad(s.office_lat)) * Math.sin(rad(s.office_lng - pos.lng) / 2) ** 2;
+  row.distance_m = Math.round(2 * R * Math.asin(Math.sqrt(a)));
+  return row.distance_m - Math.min(pos.accuracy_m || 0, 100) <= (s.office_radius || 150) ? 'office_gps' : 'outside';
+}
 const find = (coll, id) => state[coll].find((x) => x.id === id);
 
 export const actions = {
-  startDay(pid) {
+  // Bắt đầu ngày. Nếu bật kiểm tra vị trí: đang ở mạng văn phòng thì ghi luôn, không thì xin GPS
+  // (từ chối vẫn ghi được, máy chủ gắn nhãn "Chưa rõ vị trí"). Giờ + nhãn do máy chủ quyết định.
+  // Nhân sự Remote / Cộng tác viên không bị kiểm tra.
+  async startDay(pid) {
+    if (state.daystarts.some((x) => x.person_id === pid && x.date === todayStr())) return;
+    const s = state.settings;
+    const remote = isRemote(find('people', pid));
+    const check = !!s.checkin_on && !remote;
+    let pos = null;
+    if (check && s.office_lat != null) {
+      const atOffice = LIVE && (s.office_ips || []).length ? await sb.rpc('cl_at_office').then((r) => r.data === true, () => false) : false;
+      if (!atOffice) pos = await getPosition(6000);
+    }
     if (state.daystarts.some((x) => x.person_id === pid && x.date === todayStr())) return;
     const row = { id: uid(), person_id: pid, date: todayStr(), started_at: nowIso() };
+    if (!LIVE && s.checkin_on) row.loc = remote ? 'wfh' : pos && s.office_lat != null ? demoLoc(pos, s, row) : 'office_wifi';
     state.daystarts = [...state.daystarts, row];
     commit();
-    persist(async () => {
-      // Giờ thật do máy chủ ghi → cập nhật lại theo kết quả trả về
-      const saved = await run(sb.from('cl_daystarts').insert({ id: row.id }).select().single());
+    await persist(async () => {
+      // Giờ thật + nhãn vị trí do máy chủ ghi → cập nhật lại theo kết quả trả về
+      const saved = await run(sb.from('cl_daystarts').insert({ id: row.id, ...(pos || {}) }).select().single());
       state.daystarts = state.daystarts.map((x) => (x.id === row.id ? saved : x));
       commit();
     });
+    return state.daystarts.find((x) => x.id === row.id);
   },
   addTask(t) {
     const task = { id: uid(), status: 'todo', progress: 0, priority: 'mid', scope: 'work', source: 'adhoc', date: todayStr(), created_at: nowIso(), ...t };
@@ -437,6 +458,10 @@ export const actions = {
   },
   async telegramCode() {
     return rpc('cl_telegram_code');
+  },
+  // IP mạng máy đang dùng, theo góc nhìn của máy chủ (để lưu làm IP văn phòng)
+  async myIp() {
+    return LIVE ? rpc('cl_my_ip') : '203.0.113.10';
   },
   async testNotify() {
     return callFunction('cl-notify', { action: 'test' });

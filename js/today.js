@@ -181,14 +181,25 @@ function prevWorkday(state, pid, date) {
 
 function StartCard({ ctx, person, start, leave, workday, canAct, isToday }) {
   const st = start && U.startStatus(start.started_at, ctx.state.settings, person);
+  const loc = U.locInfo(start);
   const sat = U.weekday(U.todayStr()) === 6;
+  const [busy, setBusy] = useState(false);
+  const checking = !!ctx.state.settings.checkin_on && !U.isRemote(person);
+  const begin = async () => {
+    setBusy(true);
+    const row = await actions.startDay(person.id);
+    setBusy(false);
+    if (row) ctx.notify('Đã bắt đầu ngày làm việc lúc ' + U.fmtTime(row.started_at));
+  };
   if (!workday)
     return html`<div class="startcard off"><span class="big">🌴</span><div><b>${leave ? U.LEAVE_TYPES[leave.type] : 'Ngày nghỉ'}</b><div class="muted">${leave?.note || 'Chủ nhật'}</div></div></div>`;
   if (start)
     return html`<div class=${'startcard ' + st.cls}>
       <span class="big">${st.cls === 'ok' ? '✅' : '⏰'}</span>
       <div><b>Đã bắt đầu lúc ${U.fmtTime(start.started_at)}</b>
-        <div class="muted">${st.label}${sat ? ' · Thứ 7 làm việc tại nhà (WFH)' : ''}${leave ? ' · ' + U.LEAVE_TYPES[leave.type] : ''}</div></div>
+        <div class="muted">${st.label}${sat ? ' · Thứ 7 làm buổi sáng' : ''}${leave ? ' · ' + U.LEAVE_TYPES[leave.type] : ''}</div>
+        ${loc && html`<div class="small"><${Badge} cls=${loc.cls} title=${loc.title}>${loc.icon} ${loc.label}${loc.dist ? ' · ' + loc.dist : ''}</${Badge}>
+          ${canAct && start.loc === 'unknown' && html` <span class="muted">Hãy bắt wifi văn phòng hoặc cho phép định vị ở lần sau.</span>`}</div>`}</div>
     </div>`;
   if (!canAct)
     return html`<div class=${'startcard ' + (isToday && U.nowMin() > U.toMin(ctx.state.settings.late_after) ? 'bad' : '')}>
@@ -197,10 +208,10 @@ function StartCard({ ctx, person, start, leave, workday, canAct, isToday }) {
   return html`<div class="startcard cta">
     <div>
       <b>${greet()}${U.isWorker(person) ? ' ' + person.full_name.split(' ').pop() : ''}!</b>
-      <div class="muted">Giờ làm bắt đầu ${ctx.state.settings.work_start}${sat ? ' · Thứ 7 làm buổi sáng' : ''}. Hệ thống ghi nhận đúng thời điểm bạn bấm.</div>
+      <div class="muted">Giờ làm bắt đầu ${ctx.state.settings.work_start}${sat ? ' · Thứ 7 làm buổi sáng' : ''}. Hệ thống ghi nhận đúng thời điểm bạn bấm${checking ? ' và bạn có đang ở văn phòng không (wifi công ty hoặc định vị)' : ''}.</div>
     </div>
-    <button class=${'btn start ' + (late ? 'late' : '')} onClick=${() => { actions.startDay(person.id); ctx.notify('Đã bắt đầu ngày làm việc lúc ' + U.hm(U.nowMin())); }}>
-      ▶ Bắt đầu ngày làm việc <small>${U.hm(U.nowMin())}</small>
+    <button class=${'btn start ' + (late ? 'late' : '')} disabled=${busy} onClick=${begin}>
+      ${busy ? '📍 Đang xác định vị trí…' : html`▶ Bắt đầu ngày làm việc <small>${U.hm(U.nowMin())}</small>`}
     </button>
   </div>`;
 }

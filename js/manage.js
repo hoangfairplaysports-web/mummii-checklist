@@ -10,7 +10,7 @@ const WDAYS = [[1, 'T2'], [2, 'T3'], [3, 'T4'], [4, 'T5'], [5, 'T6'], [6, 'T7']]
 export function SettingsView({ ctx }) {
   const isAdmin = ctx.me.role === 'admin';
   const tabs = isAdmin
-    ? [{ id: 'depts', label: '🏢 Phòng ban' }, { id: 'people', label: '👥 Nhân sự' }, { id: 'routine', label: '🔁 Routine' }, { id: 'leave', label: '🌴 Nghỉ phép & lễ' }, { id: 'rules', label: '⏰ Giờ làm & quyền' }, { id: 'notify', label: '🔔 Thông báo' }, { id: 'ai', label: '🤖 Trợ lý AI' }]
+    ? [{ id: 'depts', label: '🏢 Phòng ban' }, { id: 'people', label: '👥 Nhân sự' }, { id: 'routine', label: '🔁 Routine' }, { id: 'leave', label: '🌴 Nghỉ phép & lễ' }, { id: 'rules', label: '⏰ Giờ làm, vị trí & quyền' }, { id: 'notify', label: '🔔 Thông báo' }, { id: 'ai', label: '🤖 Trợ lý AI' }]
     : [{ id: 'notify', label: '🔔 Thông báo' }];
   const [tab, setTab] = useState(tabs[0].id);
   return html`<div class="page">
@@ -271,7 +271,79 @@ function Rules({ ctx }) {
         <option value="admin">Chỉ CEO / Quản trị</option><option value="managers">CEO + Quản lý nhóm</option><option value="all">Mọi người (không thấy phần tiền)</option></select></label>
     </div>
     <p class="muted small">Thứ 7 làm buổi sáng, vẫn bấm Bắt đầu và tính giờ, không phải nộp báo cáo ngày. Người có giờ bắt đầu riêng / không tính trễ: chỉnh trong Nhân sự. Phần tiền của dự án luôn chỉ CEO / Quản trị thấy.</p>
+    <${CheckinRules} f=${f} setF=${setF} ctx=${ctx} />
     <div class="row end"><button class="btn primary" onClick=${() => { actions.saveSettings(f); ctx.notify('Đã lưu'); }}>Lưu</button></div>
+  </div>`;
+}
+
+// Kiểm tra vị trí khi bấm Bắt đầu: không chặn, chỉ gắn nhãn Tại / Ngoài văn phòng
+function CheckinRules({ f, setF, ctx }) {
+  const ips = f.office_ips || [];
+  const [ipIn, setIpIn] = useState('');
+  const [coordIn, setCoordIn] = useState('');
+  const [busy, setBusy] = useState('');
+  const addIp = (ip) => {
+    ip = (ip || '').trim();
+    if (!ip) return;
+    if (!ips.includes(ip)) setF({ ...f, office_ips: [...ips, ip] });
+    setIpIn('');
+  };
+  const useMyIp = async () => {
+    setBusy('ip');
+    try {
+      const ip = await actions.myIp();
+      if (!ip) throw new Error('Máy chủ không nhận ra IP');
+      if (ips.includes(ip)) ctx.notify('IP ' + ip + ' đã có trong danh sách');
+      else { addIp(ip); ctx.notify('Đã thêm ' + ip + ' — nhớ bấm Lưu'); }
+    } catch (e) {
+      ctx.notify('Không lấy được IP: ' + e.message);
+    }
+    setBusy('');
+  };
+  const useMyPos = async () => {
+    setBusy('gps');
+    const p = await U.getPosition(10000);
+    setBusy('');
+    if (!p) return ctx.notify('Không lấy được vị trí — hãy cho phép trình duyệt truy cập vị trí');
+    setF({ ...f, office_lat: +p.lat.toFixed(6), office_lng: +p.lng.toFixed(6) });
+    ctx.notify(`Đã lấy vị trí (sai số ~${p.accuracy_m} m) — nhớ bấm Lưu`);
+  };
+  const applyCoord = () => {
+    const m = coordIn.match(/(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)/);
+    if (!m) return ctx.notify('Dán theo dạng "10.7769, 106.7009" (chuột phải trên Google Maps để copy)');
+    setF({ ...f, office_lat: +m[1], office_lng: +m[2] });
+    setCoordIn('');
+  };
+  const hasPos = f.office_lat != null && f.office_lng != null;
+  return html`<div class="card pad checkin-rules">
+    <label class="check"><input type="checkbox" checked=${!!f.checkin_on} onChange=${(e) => setF({ ...f, checkin_on: e.target.checked })} />
+      <b>📍 Ghi nhận vị trí khi bấm "Bắt đầu ngày làm việc"</b></label>
+    <p class="muted small">Không chặn ai bấm. Mỗi lượt bắt đầu được gắn nhãn 🏢 Tại văn phòng / 📍 Ngoài văn phòng / ❔ Chưa rõ để bạn xem ở trang Team.
+      Ưu tiên kiểm tra <b>wifi văn phòng</b>; nếu không bắt wifi công ty thì app xin <b>định vị GPS</b>. Nhân sự Remote / Cộng tác viên không bị kiểm tra (đặt ở Nhân sự → Loại hình). App không lưu toạ độ của nhân viên, chỉ lưu khoảng cách tới văn phòng.</p>
+    ${f.checkin_on && html`
+      <div class="sub">
+        <b class="small">1. Wifi văn phòng (IP mạng)</b>
+        <div class="row wrap gap">${ips.length ? ips.map((ip) => html`<span class="chip">${ip} <button type="button" class="x" title="Bỏ IP này" onClick=${() => setF({ ...f, office_ips: ips.filter((x) => x !== ip) })}>×</button></span>`) : html`<span class="muted small">Chưa có IP nào.</span>`}</div>
+        <div class="row wrap gap">
+          <button type="button" class="btn" disabled=${busy === 'ip'} onClick=${useMyIp}>${busy === 'ip' ? 'Đang lấy…' : '+ Thêm IP mạng tôi đang dùng'}</button>
+          <input placeholder="hoặc nhập IP" value=${ipIn} onInput=${(e) => setIpIn(e.target.value)} onKeyDown=${(e) => e.key === 'Enter' && addIp(ipIn)} style="max-width:12rem" />
+          ${ipIn && html`<button type="button" class="btn" onClick=${() => addIp(ipIn)}>Thêm</button>`}
+        </div>
+        <p class="muted small">Bấm nút khi máy đang <b>bắt wifi văn phòng</b> (tắt VPN). Văn phòng có 2 đường mạng thì bấm ở mỗi mạng một lần. Nếu nhà mạng cấp IP động, IP có thể đổi; khi đó nhân viên ở văn phòng sẽ được kiểm tra bằng GPS thay thế, bạn chỉ cần thêm IP mới.</p>
+      </div>
+      <div class="sub">
+        <b class="small">2. Vị trí văn phòng (GPS dự phòng)</b>
+        <div class="row wrap gap">
+          <button type="button" class="btn" disabled=${busy === 'gps'} onClick=${useMyPos}>${busy === 'gps' ? 'Đang định vị…' : '📍 Lấy vị trí hiện tại làm văn phòng'}</button>
+          <input placeholder="hoặc dán toạ độ từ Google Maps" value=${coordIn} onInput=${(e) => setCoordIn(e.target.value)} onKeyDown=${(e) => e.key === 'Enter' && applyCoord()} style="max-width:16rem" />
+          ${coordIn && html`<button type="button" class="btn" onClick=${applyCoord}>Dùng toạ độ</button>`}
+        </div>
+        ${hasPos ? html`<div class="small">Văn phòng: <b>${f.office_lat}, ${f.office_lng}</b> · <a href=${`https://www.google.com/maps?q=${f.office_lat},${f.office_lng}`} target="_blank" rel="noopener">xem trên bản đồ</a>
+            · <button type="button" class="linkbtn" onClick=${() => setF({ ...f, office_lat: null, office_lng: null })}>xoá</button></div>`
+          : html`<div class="small warn-t">Chưa đặt vị trí văn phòng → ai không bắt wifi công ty sẽ là "Chưa rõ vị trí".</div>`}
+        <label class="small" style="max-width:16rem">Bán kính tính là "tại văn phòng" (mét)
+          <input type="number" min="50" max="2000" step="10" value=${f.office_radius || 150} onInput=${(e) => setF({ ...f, office_radius: Math.max(50, +e.target.value || 150) })} /></label>
+      </div>`}
   </div>`;
 }
 
